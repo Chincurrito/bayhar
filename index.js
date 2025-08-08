@@ -10,13 +10,18 @@ const uuid = require('uuid') // load uuid package
 var tokens = [] 
 // HTTP SERVER
 ///////////////////////////////////////////////////
-
+const port = 3000;
 //Start Server
-serv.listen(process.env.PORT); // specified port or 8k as backup
-console.log('Using port '+process.env.PORT); // log which port was used
+serv.listen(3000); // specified port or 8k as backup
+console.log('Started server at '+startedTime+' on port '+port); // log which port was used
 //route main page in index
 app.get('/',function(req, res) {
   res.sendFile(__dirname + '/client/index.html');
 });
 //Serve static files
 app.use('/client',express.static(__dirname + '/client'));
+
+io.sockets.on('connection', function (socket) {
+    // listeners go here
+    socket.emit('handshake')
+})

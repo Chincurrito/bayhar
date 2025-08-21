@@ -7,32 +7,47 @@ const path = require('path')
 const { resolve } = require('path');
 var startedTime = new Date(); // convenient
 const uuid = require('uuid') // load uuid package
+const nodemailer = require('nodemailer')
+const url = require('url')
+const hash = require('hash.js')
 var tokens = []
 var serverData = {}
 var allowedImageFormats = ['image/png','image/jpeg','image/gif']
 // HTTP SERVER
-const port = 3000;
+
+const port = 3001;
 
 class tripCode{
-    constructor(email,name,password,pwdtkn){
+    constructor(email,name,passwordH,pwdtkn){
         this.email = email;
         this.name = name,
-        this.password = password
+        this.passwordH = passwordH
         this.pwdtkn = pwdtkn
     }
 }
 class school {
-    constructor(mods,boards,name,vfdomain){
+    constructor(mods,boards,name,vfdomain,tcodes,modaccounts){
         this.mods = mods
         this.boards = boards
         this.name = name
         this.vfdomain = vfdomain
+        this.codes = tcodes
+        this.modaccounts = modaccounts
     }
 }
 class board {
     constructor(posts,name){
         this.posts = posts
         this.name = name
+    }
+    static addPost (op,text,comments,isvf,imgpath) {
+        var post = new post(op,text,comments,isvf,imgpath)
+        this.posts.push(post)
+        this.organizePosts()
+    }
+    static organizePosts() {
+        this.posts.sort((a,b) => b.score-a.score)
+        this.posts = this.posts.slice(0,50)
     }
 }
 class post {
@@ -50,8 +65,12 @@ class post {
         if (this.isvf) {
             score += 20
         }
-        score -= Math.floor(age / 300000 ) // minus one score for every 5 minutes in post age
+        score -= (age / 300000 ) // minus one score for every 5 minutes in post age
         return score
+    }
+    static delAsset () {
+        fs.unlinkSync(this.imgpath)
+        
     }
 }
 class attachment {
@@ -91,8 +110,21 @@ io.sockets.on('connection', function (socket) {
        
     })
 })
-function mkpost (trip,rawtxt,schoolid,board,attachments) {
-
+function registerTrip(school,name,emailAddr,pWord) {
+    if ((emailAddr.substring(emailAddr.length - school.vfdomain.length, emailAddr.length) != school.vfdomain) && school.vfdomain != '') {
+        return {error:true, message:`Invalid address domain. Please register using the designated domain for this community.`}
+    }
+    if (pWord.length < 8) {
+        return {error:true,message:'Password is too short'}
+    }
+    for (i=0;i<school.codes.length;i++) {
+        if (school.codes[i].email == emailAddr) {
+            return {error:true,message:'This email address is already in use!'}
+        }
+    }
+    let usertoken = randLetters(40)
+    var tc = new tripCode (mailAddr,name,hash.sha256().update(pWord).digest('hex'),usertoken)
+    school.codes.push(tc)
 }
 async function processImage(buffer,type) {
     return new Promise ((resolve,reject) => {
@@ -113,8 +145,7 @@ async function processImage(buffer,type) {
     let d = path.join(__dirname,'src')
     let dir = path.join(d,name)
     var clientpath = '/src/'+name
-    console.log(buffer.toString('base64'))
-     fs.writeFile(dir,buffer.toString('base64'),(err) => {
+     fs.writeFile(dir,buffer.toString('base64'),'base64',(err) => {
         if (err){
             resolve({error:true,message:err})
         }
@@ -123,6 +154,15 @@ async function processImage(buffer,type) {
          }
     })
     })
+}
+function verifyCode(school,n,p) {
+    let trip = ''
+    for(i=0;i<school.codes.length;i++){
+        if (hash.sha256().update(p).digest('hex') == school.codes[i].passwordH && school.codes[i].name == n) {
+            return true
+        }
+    }
+    return false
 }
 function randLetters (length) {
     var chars = 'qwertyuiopasdfghjklzxcvbnm1234567890QWERTYUIOPASDFGHJKLZXCVBNM'
@@ -157,4 +197,25 @@ function processText(rawtext) {
 // var data = fs.readFileSync(__dirname+'/src/IMG_6205.png').toString('base64')
 // fs.writeFileSync(__dirname+'/src/chinchilla2.png',data,{encoding:'base64'},(err) => {
 //     if (err){console.log(err)}else{console.log('done!')}
+// })
+// TEST EMAIL
+// var transporter = nodemailer.createTransport({
+//     service:'Gmail',
+//     auth: {
+//         user:'humburgercheeseburger93@gmail.com',
+//         pass: 'Horse7Rat$Kilogram'
+//    }
+// });
+// var mailOptions = {
+//     from:'humburgercheeseburger93@gmail.com',
+//     to:'ekocher26@bayschoolsf.org',
+//     subject:'test test',
+//     text:'test test'
+// }
+// transporter.sendMail(mailOptions, function(error, info) {
+//     if (error) {
+//         console.log(error);
+//     } else {
+//         console.log('Email sent: ' + info.response)
+//     }
 // })
